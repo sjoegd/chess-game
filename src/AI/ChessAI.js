@@ -1,9 +1,6 @@
 import { Chess, SQUARES } from 'chess.js';
 
-// TODO: Optimize minimax futher
-
-const boardX = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-const boardY = ['1', '2', '3', '4', '5', '6', '7', '8'];
+// TODO: Optimize negamax futher
 
 const inBoardX = {
   a: true,
@@ -215,99 +212,50 @@ function getScore(move, engine) {
   return 0;
 }
 
-function alpha_beta_maxi(engine, evaluator, alpha, beta, depth, color, cmc, transpos_table) {
-  // transposition table hashing
-  const my_hash = simple_fen_hash(engine, 'maxi');
-  const transpos_value = transpos_table[my_hash];
-  if (transpos_value != undefined) {
-    return transpos_value;
+function negaMax(engine, evaluator, alpha, beta, depth, color, transpos_table, count, max_count) {
+
+  count.count += 1
+
+  if(depth <= 0 || count.count > max_count) {
+    let eval_val = evaluator(engine, color)
+    let return_val = [count, eval_val, undefined]
+    return return_val;
   }
 
-  if (cmc()) {
-    // check is checkmate
-    let eval_val = engine.turn() == color ? -Infinity : Infinity;
-    transpos_table[my_hash] = [eval_val, undefined];
-    return [eval_val, undefined];
+  if(engine.isGameOver()) {
+    let eval_val = engine.turn() == color ? -Infinity : Infinity
+    let return_val = [count, eval_val, undefined]
+    return return_val;
   }
 
-  if (depth == 0 || engine.isGameOver()) {
-    let eval_val = evaluator(engine, color);
-    transpos_table[my_hash] = [eval_val, undefined];
-    return [eval_val, undefined];
-  }
+  let moves = sortMoves(engine.moves(), engine)
+  let best_move = moves[0]; 
+  let best_score = -Infinity
 
-  let moves = sortMoves(engine.moves(), engine);
-  let best = moves[0]; 
+  for(let move of moves) {
+    engine.move(move)
+    let [_, score, m] = negaMax(engine, evaluator, -beta, -alpha, depth - 1, color == 'w' ? 'b' : 'w', transpos_table, count, max_count)
+    score = -score
+    engine.undo()
 
-  for (let move of moves) {
-    engine.move(move);
-    let [score, _] = alpha_beta_mini(engine, evaluator, alpha, beta, depth - 1, color, cmc, transpos_table);
-    engine.undo();
+    alpha = Math.max(alpha, score)
 
-    if (score > alpha) {
-      alpha = score;
-      best = move;
+    if(score > best_score) {
+      best_score = score
+      best_move = move
     }
 
-    if (score >= beta) {
-      transpos_table[my_hash] = [beta, best];
-      return [beta, best];
+    if(alpha >= beta) {
+      break;
     }
   }
 
-  transpos_table[my_hash] = [alpha, best];
-  return [alpha, best];
-}
-
-function alpha_beta_mini(engine, evaluator, alpha, beta, depth, color, cmc, transpos_table) {
-  // transposition table hashing
-  const my_hash = simple_fen_hash(engine, 'mini');
-  const transpos_value = transpos_table[my_hash];
-  if (transpos_value != undefined) {
-    return transpos_value;
-  }
-
-  if (cmc()) {
-    // check is checkmate
-    let eval_val = engine.turn() == color ? -Infinity : Infinity;
-    transpos_table[my_hash] = [eval_val, undefined];
-    return [eval_val, undefined];
-  }
-
-  if (depth == 0 || engine.isGameOver()) {
-    let eval_val = evaluator(engine, color);
-    transpos_table[my_hash] = [eval_val, undefined];
-    return [eval_val, undefined];
-  }
-
-  let moves = sortMoves(engine.moves(), engine); // cant have verbose = true
-  let best = moves[0]; // random!
-
-  for (let move of moves) {
-    engine.move(move);
-    let [score, _] = alpha_beta_maxi(engine, evaluator, alpha, beta, depth - 1, color, cmc, transpos_table);
-    engine.undo();
-
-    if (score < beta) {
-      beta = score;
-      best = move;
-    }
-
-    if (score <= alpha) {
-      transpos_table[my_hash] = [alpha, best];
-      return [alpha, best];
-    }
-  }
-
-  transpos_table[my_hash] = [beta, best];
-  return [beta, best];
-}
-
-function simple_fen_hash(engine, m) {
-  return engine.fen() + '-' + engine.turn() + '-' + m;
+  let return_val = [count, best_score, best_move]
+  return return_val
 }
 
 export default function getAIMove(chess, depth, color) {
-  let checkMateChecker = () => chess.isCheckmate();
-  return alpha_beta_maxi(chess, materialPositionScore, -Infinity, Infinity, depth, color, checkMateChecker, {});
+  return negaMax(chess, materialPositionScore, -Infinity, Infinity, depth, color, {}, {count: 1}, depth*50000)
 }
+
+

@@ -1,8 +1,0 @@
-Using: React Tailwind and ChessJS and react-chessboard
-
-Todo's
-Study ChessJs and react-chessboard
-figure out how to connect the two and what functions to use
-create a good UI to play
-with a simple AI that always choses a random move
-Make sure its playable responsive etc

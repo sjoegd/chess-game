@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 import ChessAI from './AI/ChessAI.js'
+import {getAnalysis} from './AI/ChessAnalysis.js'
 
 import clone from './helpers/clone.js';
 import useWindowSize from './helpers/useWindowSize';
@@ -24,9 +25,7 @@ import ChessGame from './components/ChessGame.jsx';
 // implement chat
 // fix en passant graphics
 
-let game = new Chess('');
-// .turn() for current side to move
-// .undo() for undo
+let game = new Chess();
 
 function App() {
   const [position, setPosition] = useState(game.fen());
@@ -37,6 +36,87 @@ function App() {
   const [gameMessages, setGameMessages] = useState([]);
   const [chatMessages, setChatMessages] = useState(createTestMessage(0));
   const windowSize = useWindowSize();
+  const [level, setLevel] = useState(3)
+
+  // ----- BOTS -----
+  const functionPerLevel = {
+    1: makeRandomMove,
+    2: makeAIMove,
+    3: makeStockFishMove
+  }
+
+  function startBotMatch() {
+    makeBotMove(level, true)
+  }
+
+  function makeBotMove(level = 1, fullBotMatch = false) {
+    if(gameFrozen || game.isGameOver()) {
+      return;
+    }
+
+    functionPerLevel[level](level, fullBotMatch)
+  }
+
+  // Level 1, random moves
+  function makeRandomMove(level, fullBotMatch) {
+    const moves = game.moves();
+    const randomIndex = Math.floor(Math.random() * moves.length);
+
+    makeAMove(moves[randomIndex]);
+
+    if(fullBotMatch) {
+      setTimeout(makeBotMove(level, fullBotMatch), 1000)
+    }
+  }
+
+  // Level 2, custom depth 4
+  function makeAIMove(level, fullBotMatch) {
+    let [count, score, move] = ChessAI(game, 4, game.turn())
+
+    makeAMove(move)
+
+    if(fullBotMatch) {
+      setTimeout(makeBotMove(level, fullBotMatch), 500)
+    }
+  }
+
+  // Level 3, depth 18 stockfish
+  function makeStockFishMove(level, fullBotMatch) {
+    getAnalysis(game.fen(), 18).then(({moves}) => {
+      let {score, uci} = moves[0]
+      let move = {from: uci[0].slice(0,2), to: uci[0].slice(2,4)} 
+
+      if (isPromotion(move, game.turn() + game.get(move.from).type, game.turn())) {
+        move['promotion'] = 'q'; 
+      }
+
+      makeAMove(move)
+
+      if(fullBotMatch) {
+        setTimeout(makeBotMove(level, fullBotMatch), 1000)
+      }
+    })
+  }
+
+  // ----- GAME MANAGEMENT -----
+
+  function createFreshGame() {
+    game.reset();
+    setPosition(game.fen());
+    setValidMovesShown({});
+    setDangerPositionsShown({});
+    setGameFrozen(false);
+    setGameMessages([]);
+  }
+
+  function resignGame() {
+    if (gameFrozen) {
+      return;
+    }
+
+    setGameFrozen(true);
+    addGameMessage('You resigned!');
+  }
 
   function addGameMessage(message) {
     let gameMessagesCopy = [...gameMessages];
@@ -51,76 +131,8 @@ function App() {
     setChatMessages(chatMessagesCopy);
   }
 
-  function resignGame() {
-    if (gameFrozen) {
-      return;
-    }
-
-    setGameFrozen(true);
-    addGameMessage('You resigned!');
-  }
-
-  function startFreshGame() {
-    game.reset();
-    setPosition(game.fen());
-    setValidMovesShown({});
-    setDangerPositionsShown({});
-    setGameFrozen(false);
-    setGameMessages([]);
-  }
-
-  function getKingPosition() {
-    for (let char of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
-      for (let number of [1, 2, 3, 4, 5, 6, 7, 8]) {
-        let { type, color } = game.get(`${char}${number}`);
-        if (color == game.turn() && type == 'k') {
-          return `${char}${number}`;
-        }
-      }
-    }
-  }
-
-  function checkGameStatus() {
-    if(gameFrozen) {
-      return;
-    }
-
-    if (game.isCheck()) {
-      addGameMessage(game.turn() == playerColour ? 'You were checked!' : 'You checked the enemy.');
-      setDangerPositionsShown({ [getKingPosition()]: { boxSizing: 'border-box', border: 'solid 0.15rem red' } });
-    }
-
-    let checkMate = game.isCheckmate();
-    let stalemate = game.isStalemate();
-    let insufficientMaterial = game.isInsufficientMaterial();
-    let treefoldRepition = game.isThreefoldRepetition();
-    let draw = game.isDraw();
-    let gameOver = game.isGameOver();
-
-    if (checkMate) {
-      addGameMessage(game.turn() == playerColour ? 'You lost...' : 'You won!');
-    }
-
-    if (treefoldRepition) {
-      addGameMessage('The current board position has occured three or more times...');
-    }
-
-    if (stalemate) {
-      addGameMessage(game.turn() == playerColour ? 'You were stalemated' : 'You stalemated the enemy');
-    }
-
-    if (insufficientMaterial) {
-      addGameMessage('There is insufficient material to continue...');
-    }
-
-    if (draw) {
-      addGameMessage('The game ended in a draw');
-    }
-
-    if (gameOver) {
-      setGameFrozen(true);
-    }
-  }
+  // ----- END GAME MANAGEMENT -----
+  // ----- MOVEMENT/PLAYER MANAGEMENT -----
 
   function makeAMove(move) {
     if(gameFrozen) {
@@ -141,38 +153,6 @@ function App() {
     return result;
   }
 
-  // piece is a pawn and location is 8
-  function isPromotion(move, piece) {
-    if (!piece) {
-      return false;
-    }
-    return piece[1] == 'P' && move.to[1] == '8';
-  }
-
-  function makeAIMove() {
-    if(gameFrozen) {
-      return;
-    }
-
-    let pre = new Date()
-    let [score, move] = ChessAI(game, 4, game.turn())
-    let post = new Date()
-    console.log(`Time: ${post-pre}`)
-    console.log(score, move)
-    makeAMove(move)
-  }
-
-  function makeRandomMove() {
-    if(gameFrozen) {
-      return;
-    }
-
-    const moves = game.moves();
-    const randomIndex = Math.floor(Math.random() * moves.length);
-    makeAMove(moves[randomIndex]);
-  }
-
-  // only reacts to player
   function onDrop(sourceSquare, targetSquare, piece) {
     if (game.turn() != playerColour || gameFrozen) {
       return;
@@ -180,7 +160,7 @@ function App() {
 
     const move = { from: sourceSquare, to: targetSquare };
 
-    if (isPromotion(move, piece)) {
+    if (isPromotion(move, piece, playerColour)) {
       move['promotion'] = 'q'; // should be a choice
       // promotion can be: n b r q (knight bishop rook queen)
     }
@@ -189,10 +169,24 @@ function App() {
 
     // if move didn't fail
     if (result) {
-      setTimeout(makeAIMove, 500);
+      setTimeout(makeBotMove(level, false))
     }
   }
 
+  // piece is a pawn and location is 8
+  function isPromotion(move, piece, color = playerColour) {
+    if (!piece) {
+      return false;
+    }
+
+    if(color = 'w') {
+      return piece.toLowerCase()[1] == 'p' && move.to[1] == '8';
+    } else {
+      return piece.toLowerCase()[1] == 'p' && move.to[1] == '1'
+    }
+  }
+
+  // only reacts to player
   function allowedToDrag({ piece, sourceSquare }) {
     const colour = piece[0];
     return playerColour == colour && playerColour == game.turn();
@@ -252,6 +246,59 @@ function App() {
     setValidMovesShown({});
   }
 
+  function checkGameStatus() {
+    if(gameFrozen) {
+      return;
+    }
+
+    if (game.isCheck()) {
+      addGameMessage(game.turn() == playerColour ? 'You were checked!' : 'You checked the enemy.');
+      setDangerPositionsShown({ [getKingPosition()]: { boxSizing: 'border-box', border: 'solid 0.15rem red' } });
+    }
+
+    let checkMate = game.isCheckmate();
+    let stalemate = game.isStalemate();
+    let insufficientMaterial = game.isInsufficientMaterial();
+    let treefoldRepition = game.isThreefoldRepetition();
+    let draw = game.isDraw();
+    let gameOver = game.isGameOver();
+
+    if (checkMate) {
+      addGameMessage(game.turn() == playerColour ? 'You lost...' : 'You won!');
+    }
+
+    if (treefoldRepition) {
+      addGameMessage('The current board position has occured three or more times...');
+    }
+
+    if (stalemate) {
+      addGameMessage(game.turn() == playerColour ? 'You were stalemated' : 'You stalemated the enemy');
+    }
+
+    if (insufficientMaterial) {
+      addGameMessage('There is insufficient material to continue...');
+    }
+
+    if (draw) {
+      addGameMessage('The game ended in a draw');
+    }
+
+    if (gameOver) {
+      setGameFrozen(true);
+    }
+  }
+
+  function getKingPosition() {
+    for (let char of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      for (let number of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        let { type, color } = game.get(`${char}${number}`);
+        if (color == game.turn() && type == 'k') {
+          return `${char}${number}`;
+        }
+      }
+    }
+  }
+
   return (
     <div className="h-screen flex justify-center items-center">
       <div className="flex space-x-10 max-h-[80vmin]">
@@ -265,8 +312,9 @@ function App() {
           removeDragPieceValidMoves={() => removeDragPieceValidMoves()}
           validMovesShown={validMovesShown}
           dangerPositionsShown={dangerPositionsShown}
-          startFreshGame={() => startFreshGame()}
+          startFreshGame={() => createFreshGame()}
           resignGame={() => resignGame()}
+          startBotMatch={() => startBotMatch()}
           gameFrozen={gameFrozen}
         />
         <Chat gameMessages={gameMessages} chatMessages={chatMessages} />

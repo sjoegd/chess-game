@@ -3,12 +3,11 @@ import React from 'react';
 import { Chessboard } from 'react-chessboard';
 
 export default function ChessGame(props) {
-  let {position, boardWidth, onDrop, allowedToDrag, showDragPieceValidMoves, removeDragPieceValidMoves, validMovesShown, dangerPositionsShown, startFreshGame, resignGame, gameFrozen} = props;
+  let {position, boardWidth, onDrop, allowedToDrag, showDragPieceValidMoves, removeDragPieceValidMoves, validMovesShown, dangerPositionsShown, startFreshGame, resignGame, startBotMatch, gameFrozen} = props;
   return (
     <div className="flex flex-col justify-center items-center select-none">
       <div className="w-fit">
         <Chessboard
-          key={":)"}
           position={position}
           boardWidth={boardWidth}
           onPieceDrop={onDrop}
@@ -25,6 +24,9 @@ export default function ChessGame(props) {
         </button>
         <button onClick={resignGame} className='border-2 border-black p-1 rounded-md w-[6rem]'>
           Resign
+        </button>
+        <button onClick={startBotMatch} className='border-2 border-black p-1 rounded-md w-[6rem]'>
+          AI Match
         </button>
         <div>{gameFrozen ? 'Game is frozen' : 'Game is playable'}</div>
       </div>
