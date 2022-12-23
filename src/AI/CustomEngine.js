@@ -254,7 +254,7 @@ function negaMax(engine, evaluator, alpha, beta, depth, color, transpos_table, c
   return return_val
 }
 
-export default function getAIMove(chess, depth, color) {
+export default function getCustomEngineMove(chess, depth, color) {
   return negaMax(chess, materialPositionScore, -Infinity, Infinity, depth, color, {}, {count: 1}, depth*50000)
 }
 

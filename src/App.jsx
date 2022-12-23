@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-import ChessAI from './AI/ChessAI.js'
+import customChessEngine from './AI/CustomEngine.js'
 import {getAnalysis} from './AI/ChessAnalysis.js'
 
 import clone from './helpers/clone.js';
@@ -16,14 +16,13 @@ import ChessGame from './components/ChessGame.jsx';
 // - To make chessboard 'responsive' boardWidth prop can be changed
 
 // Todo's:
-// check is everything is implemented for a player vs bot environment (think so)
-// reposition of functions
-// add more features
-// add UI
-// add time and draw on time (and win on time)
-// add promotion question?
-// implement chat
-// fix en passant graphics
+// make clean UI and update it
+// change auto bot games, they stay in the one function loop which makes them ignore state changes
+//  this needs to change, maybe use useEffect for that^
+// bot names
+// train a bot with reinforcement learning
+// make the folders nice, optimize coding and cleanness
+// put this online 
 
 let game = new Chess();
 
@@ -31,22 +30,41 @@ function App() {
   const [position, setPosition] = useState(game.fen());
   const [validMovesShown, setValidMovesShown] = useState({});
   const [dangerPositionsShown, setDangerPositionsShown] = useState({});
-  const [gameFrozen, setGameFrozen] = useState(true);
+  const [gameFrozen, setGameFrozen] = useState(false);
   const [playerColour, setPlayerColour] = useState('w');
   const [gameMessages, setGameMessages] = useState([]);
   const [chatMessages, setChatMessages] = useState(createTestMessage(0));
   const windowSize = useWindowSize();
-  const [level, setLevel] = useState(3)
+  const [botLevel, setBotLevel] = useState(3);
+  let [automaticBotGames, setAutomaticBotGames] = useState(false)
+
+  const [isBlackBot, setIsBlackBot] = useState(true)
+  const [isWhiteBot, setIsWhiteBot] = useState(false)
 
   // ----- BOTS -----
   const functionPerLevel = {
     1: makeRandomMove,
-    2: makeAIMove,
+    2: makeCustomEngineMove,
     3: makeStockFishMove
   }
 
+  const namePerLevel = {
+    1: "Randomizer",
+    2: "Custome Engine",
+    3: "Big fish"
+  }
+
   function startBotMatch() {
-    makeBotMove(level, true)
+    createFreshGame()
+    setIsBlackBot(true)
+    setIsWhiteBot(true)
+    makeBotMove(botLevel, true)
+  }
+
+  function startBotTournament() {
+    automaticBotGames = true  // fixes bug
+    setAutomaticBotGames(true)
+    startBotMatch()
   }
 
   function makeBotMove(level = 1, fullBotMatch = false) {
@@ -65,35 +83,44 @@ function App() {
     makeAMove(moves[randomIndex]);
 
     if(fullBotMatch) {
-      setTimeout(makeBotMove(level, fullBotMatch), 1000)
+      setTimeout(() => makeBotMove(level, fullBotMatch), 1000)
     }
   }
 
   // Level 2, custom depth 4
-  function makeAIMove(level, fullBotMatch) {
-    let [count, score, move] = ChessAI(game, 4, game.turn())
+  function makeCustomEngineMove(level, fullBotMatch) {
+    let [count, score, move] = customChessEngine(game, 4, game.turn())
 
     makeAMove(move)
 
     if(fullBotMatch) {
-      setTimeout(makeBotMove(level, fullBotMatch), 500)
+      setTimeout(() => makeBotMove(level, fullBotMatch), 500)
     }
   }
 
   // Level 3, depth 18 stockfish
   function makeStockFishMove(level, fullBotMatch) {
     getAnalysis(game.fen(), 18).then(({moves}) => {
-      let {score, uci} = moves[0]
+      let {score, uci} = moves[0] ?? {}
       let move = {from: uci[0].slice(0,2), to: uci[0].slice(2,4)} 
 
-      if (isPromotion(move, game.turn() + game.get(move.from).type, game.turn())) {
-        move['promotion'] = 'q'; 
-      }
+      if(!move.from || !move.to) {
+        console.log("No move")
+        addGameMessage("Stockfish gave no moves, ending match")
+        setGameFrozen(true)
+        if(automaticBotGames) {
+          startBotMatch()
+        } 
+      } else {
+        if (isPromotion(move, game.turn() + game.get(move.from).type, game.turn())) {
+          move['promotion'] = 'q'; 
+        }
 
-      makeAMove(move)
+        makeAMove(move)
 
-      if(fullBotMatch) {
-        setTimeout(makeBotMove(level, fullBotMatch), 1000)
+        if(fullBotMatch) {
+          setTimeout(() => makeBotMove(level, fullBotMatch), 250)
+        }
       }
     })
   }
@@ -169,7 +196,7 @@ function App() {
 
     // if move didn't fail
     if (result) {
-      setTimeout(makeBotMove(level, false))
+      setTimeout(() => makeBotMove(botLevel, false))
     }
   }
 
@@ -247,10 +274,6 @@ function App() {
   }
 
   function checkGameStatus() {
-    if(gameFrozen) {
-      return;
-    }
-
     if (game.isCheck()) {
       addGameMessage(game.turn() == playerColour ? 'You were checked!' : 'You checked the enemy.');
       setDangerPositionsShown({ [getKingPosition()]: { boxSizing: 'border-box', border: 'solid 0.15rem red' } });
@@ -283,8 +306,11 @@ function App() {
       addGameMessage('The game ended in a draw');
     }
 
-    if (gameOver) {
+    if (gameOver || draw || stalemate || treefoldRepition || insufficientMaterial) {
       setGameFrozen(true);
+      if(automaticBotGames) {
+        startBotMatch()
+      } 
     }
   }
 
@@ -316,6 +342,12 @@ function App() {
           resignGame={() => resignGame()}
           startBotMatch={() => startBotMatch()}
           gameFrozen={gameFrozen}
+          botLevel={botLevel}
+          setBotLevel={() => setBotLevel(botLevel)}
+          automaticBotGames={automaticBotGames}
+          startBotTournament={() => startBotTournament()}
+          isBlackBot={isBlackBot}
+          isWhiteBot={isWhiteBot}
         />
         <Chat gameMessages={gameMessages} chatMessages={chatMessages} />
       </div>
