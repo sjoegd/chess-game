@@ -11,6 +11,13 @@ export function getAnalysis(fen, depth) {
     })
 }
 
+export function getCustomEngineMove(fen, depth, color) {
+    return new Promise((resolve, reject) => {
+        socket.emit("custom_move", fen, depth, color)
+        socket.once("custom_result", (result) => resolve(result))
+    })
+}
+
 
 
 

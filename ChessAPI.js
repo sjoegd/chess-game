@@ -2,6 +2,7 @@ import {chessAnalysisApi, PROVIDERS} from 'chess-analysis-api';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io'
+import { getCustomEngineMove } from './src/AI/CustomEngine.js';
 
 const app = express()
 const server = createServer(app)
@@ -20,6 +21,7 @@ io.on("connection", (socket) => {
   // socket.off
   // socket.emit
   giveAnalysisAccess(socket)
+  giveCustomMoveAccess(socket)
 })
 
 function giveAnalysisAccess(socket) {
@@ -37,5 +39,11 @@ function giveAnalysisAccess(socket) {
             socket.emit("result", result)
         })
     })
+}
 
+function giveCustomMoveAccess(socket) {
+  socket.on("custom_move", (chess, depth, color) => {
+    let [count, score, move] = getCustomEngineMove(chess, depth, color)
+    socket.emit("custom_result", move)
+  })
 }

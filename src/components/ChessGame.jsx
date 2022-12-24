@@ -3,7 +3,7 @@ import React from 'react';
 import { Chessboard } from 'react-chessboard';
 
 export default function ChessGame(props) {
-  let {position, boardWidth, onDrop, allowedToDrag, showDragPieceValidMoves, removeDragPieceValidMoves, validMovesShown, dangerPositionsShown, startFreshGame, resignGame, startBotMatch, gameFrozen, botLevel, setBotLevel, automaticBotGames, startBotTournament, isBlackBot, isWhiteBot} = props;
+  let {position, boardWidth, onDrop, allowedToDrag, showDragPieceValidMoves, removeDragPieceValidMoves, validMovesShown, dangerPositionsShown, startFreshGame, resignGame, gameFrozen, botLevel, setBotLevel, possibleBotLevels, toggleBotTournament, botTournament} = props;
   return (
     <div className="flex flex-col justify-center items-center select-none">
       <div className="w-fit">
@@ -25,14 +25,18 @@ export default function ChessGame(props) {
         <button onClick={resignGame} className='border-2 border-black p-1 rounded-md w-[6rem]'>
           Resign
         </button>
-        <button onClick={startBotMatch} className='border-2 border-black p-1 rounded-md w-[6rem]'>
-          AI Match
+        <button onClick={toggleBotTournament} className='border-2 border-black p-1 rounded-md w-[10rem]'>
+          Toggle Tournament
         </button>
-        <button onClick={startBotTournament} className='border-2 border-black p-1 rounded-md w-[8rem]'>
-          AI Tournament
-        </button>
-        <div>{`Bot level: ${botLevel}`}</div>
-        <div>{automaticBotGames ? `Bot tournament` : `No bot tournament`}</div>
+        <div>{botTournament ? 'Bot Tournament On' : 'Bot Tournament Off'}</div>
+        <div>
+          <select value={botLevel} onChange={e => setBotLevel(+e.target.value)}>
+            <option hidden>Bot Level</option>
+            {possibleBotLevels.map(bot => (
+              <option key={bot.value} value={bot.value}>{bot.name}</option>
+            ))}
+          </select>
+        </div>
         <div>{gameFrozen ? 'Game is frozen' : 'Game is playable'}</div>
       </div>
     </div>
